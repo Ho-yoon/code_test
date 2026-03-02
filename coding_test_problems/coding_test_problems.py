@@ -4,6 +4,9 @@
 ==============================================================
 """
 
+from functools import cmp_to_key
+import heapq
+
 # ============================================================
 # [수학 계산 문제 1] 소수 판별 (Prime Number Check)
 # ------------------------------------------------------------
@@ -14,12 +17,16 @@
 # ============================================================
 
 def is_prime(n: int) -> bool:
+    # 0, 1, 음수는 소수가 아니다.
     if n < 2:
         return False
+    # 2는 유일한 짝수 소수다.
     if n == 2:
         return True
+    # 2를 제외한 짝수는 소수가 아니다.
     if n % 2 == 0:
         return False
+    # 홀수 약수만 확인해도 충분하다. (i*i <= n)
     for i in range(3, int(n**0.5) + 1, 2):
         if n % i == 0:
             return False
@@ -41,11 +48,17 @@ print(is_prime(2))    # True
 # 시간복잡도: O(n log log n)
 # ============================================================
 
-def sieve_of_eratosthenes(n: int) -> list:
+def sieve_of_eratosthenes(n: int) -> list[int]:
+    # n이 2보다 작으면 소수 목록은 빈 리스트다.
+    if n < 2:
+        return []
+
+    # 인덱스를 숫자로 보고, 값(True/False)을 소수 여부로 본다.
     is_prime_arr = [True] * (n + 1)
     is_prime_arr[0] = is_prime_arr[1] = False
     for i in range(2, int(n**0.5) + 1):
         if is_prime_arr[i]:
+            # i*i 미만의 배수는 이미 더 작은 소수에서 지워졌다.
             for j in range(i*i, n + 1, i):
                 is_prime_arr[j] = False
     return [i for i in range(2, n + 1) if is_prime_arr[i]]
@@ -65,12 +78,17 @@ print(sieve_of_eratosthenes(30))
 # ============================================================
 
 def gcd(a: int, b: int) -> int:
+    # 음수 입력이 와도 최대공약수는 양수로 정규화한다.
+    a, b = abs(a), abs(b)
     while b:
         a, b = b, a % b
     return a
 
 def lcm(a: int, b: int) -> int:
-    return a * b // gcd(a, b)
+    # 둘 중 하나라도 0이면 최소공배수는 0이다.
+    if a == 0 or b == 0:
+        return 0
+    return abs(a * b) // gcd(a, b)
 
 print("\n=== [수학 3] GCD & LCM ===")
 print(f"GCD(12, 18) = {gcd(12, 18)}")   # 6
@@ -87,8 +105,14 @@ print(f"LCM(12, 18) = {lcm(12, 18)}")   # 36
 # ============================================================
 
 def fibonacci(n: int) -> int:
+    # 일반적으로 음수 인덱스 피보나치는 다루지 않으므로 예외 처리.
+    if n < 0:
+        raise ValueError("n은 0 이상의 정수여야 합니다.")
+
     if n <= 1:
         return n
+
+    # 직전 두 항만 유지하면 되므로 공간복잡도 O(1) 달성.
     a, b = 0, 1
     for _ in range(2, n + 1):
         a, b = b, a + b
@@ -109,6 +133,11 @@ print([fibonacci(i) for i in range(11)])
 # ============================================================
 
 def fast_power(a: int, b: int, m: int) -> int:
+    if m <= 0:
+        raise ValueError("mod m은 1 이상의 정수여야 합니다.")
+    if b < 0:
+        raise ValueError("지수 b는 0 이상의 정수여야 합니다.")
+
     result = 1
     a %= m
     while b > 0:
@@ -134,8 +163,14 @@ print(pow(2, 10, 1000))          # 24 (내장 함수 비교)
 # ============================================================
 
 def combination(n: int, r: int, mod: int = 10**9 + 7) -> int:
+    # 잘못된 입력은 0으로 처리한다. (문제 정의에 맞춘 방어 코드)
+    if n < 0 or r < 0:
+        return 0
     if r > n:
         return 0
+    if mod <= 1:
+        raise ValueError("mod는 2 이상의 정수여야 합니다.")
+
     r = min(r, n - r)  # 대칭성 활용
     num = 1
     den = 1
@@ -158,7 +193,8 @@ print(combination(5, 2))    # 10
 # 시간복잡도: O(n²)
 # ============================================================
 
-def bubble_sort(arr: list) -> list:
+def bubble_sort(arr: list[int]) -> list[int]:
+    # 원본 보존을 위해 복사본에서만 정렬.
     arr = arr[:]
     n = len(arr)
     for i in range(n):
@@ -181,7 +217,7 @@ print(bubble_sort([64, 34, 25, 12, 22, 11, 90]))
 # 시간복잡도: O(n²)  /  특징: swap 횟수 최소
 # ============================================================
 
-def selection_sort(arr: list) -> list:
+def selection_sort(arr: list[int]) -> list[int]:
     arr = arr[:]
     n = len(arr)
     for i in range(n):
@@ -202,7 +238,7 @@ print(selection_sort([64, 25, 12, 22, 11]))
 # 시간복잡도: O(n²)  / 거의 정렬된 경우 O(n)
 # ============================================================
 
-def insertion_sort(arr: list) -> list:
+def insertion_sort(arr: list[int]) -> list[int]:
     arr = arr[:]
     for i in range(1, len(arr)):
         key = arr[i]
@@ -223,7 +259,8 @@ print(insertion_sort([12, 11, 13, 5, 6]))
 # 시간복잡도: O(n log n)  /  안정 정렬
 # ============================================================
 
-def merge_sort(arr: list) -> list:
+def merge_sort(arr: list[int]) -> list[int]:
+    # 길이가 0 또는 1이면 이미 정렬 상태.
     if len(arr) <= 1:
         return arr
     mid = len(arr) // 2
@@ -231,7 +268,7 @@ def merge_sort(arr: list) -> list:
     right = merge_sort(arr[mid:])
     return merge(left, right)
 
-def merge(left: list, right: list) -> list:
+def merge(left: list[int], right: list[int]) -> list[int]:
     result = []
     i = j = 0
     while i < len(left) and j < len(right):
@@ -253,9 +290,10 @@ print(merge_sort([38, 27, 43, 3, 9, 82, 10]))
 # 시간복잡도: 평균 O(n log n), 최악 O(n²)
 # ============================================================
 
-def quick_sort(arr: list) -> list:
+def quick_sort(arr: list[int]) -> list[int]:
     if len(arr) <= 1:
         return arr
+    # 중간 원소를 피벗으로 선택해 구현 단순화.
     pivot = arr[len(arr) // 2]
     left  = [x for x in arr if x < pivot]
     mid   = [x for x in arr if x == pivot]
@@ -275,16 +313,23 @@ print(quick_sort([3, 6, 8, 10, 1, 2, 1]))
 # 시간복잡도: O(n + k)  k = 최대값
 # ============================================================
 
-def counting_sort(arr: list) -> list:
+def counting_sort(arr: list[int]) -> list[int]:
     if not arr:
-        return arr
+        return []
+
+    # 음수도 처리할 수 있도록 offset(최솟값)을 사용한다.
+    min_val = min(arr)
     max_val = max(arr)
-    count = [0] * (max_val + 1)
+    offset = -min_val
+    count = [0] * (max_val - min_val + 1)
+
     for x in arr:
-        count[x] += 1
+        count[x + offset] += 1
+
     result = []
-    for val, cnt in enumerate(count):
-        result.extend([val] * cnt)
+    for idx, cnt in enumerate(count):
+        # idx를 실제 값으로 되돌린다.
+        result.extend([idx - offset] * cnt)
     return result
 
 print("\n=== [정렬 6] 계수 정렬 ===")
@@ -303,7 +348,8 @@ students = [
     ("Diana", 72), ("Eve", 95)
 ]
 
-def sort_students(students):
+def sort_students(students: list[tuple[str, int]]) -> list[tuple[str, int]]:
+    # 1순위: 점수 내림차순(-score), 2순위: 이름 오름차순(name)
     return sorted(students, key=lambda x: (-x[1], x[0]))
 
 print("\n=== [정렬 7] 커스텀 정렬 ===")
@@ -320,9 +366,13 @@ for name, score in sort_students(students):
 # 시간복잡도: O(n log k)
 # ============================================================
 
-import heapq
-
 def kth_largest(arr: list, k: int) -> int:
+    if not arr:
+        raise ValueError("arr는 비어 있으면 안 됩니다.")
+    if k <= 0 or k > len(arr):
+        raise ValueError("k는 1 이상 len(arr) 이하여야 합니다.")
+
+    # 크기 k의 최소 힙을 유지하면, 힙의 루트가 항상 k번째 큰 값이다.
     min_heap = []
     for num in arr:
         heapq.heappush(min_heap, num)
@@ -344,12 +394,15 @@ print(kth_largest([3, 2, 3, 1, 2, 4, 5, 5, 6], 4))  # 4
 # 시간복잡도: O(n log n)
 # ============================================================
 
-def merge_intervals(intervals: list) -> list:
+def merge_intervals(intervals: list[list[int]]) -> list[list[int]]:
     if not intervals:
         return []
-    intervals.sort(key=lambda x: x[0])   # 시작점 기준 정렬
-    merged = [intervals[0]]
-    for start, end in intervals[1:]:
+
+    # 원본 훼손을 막기 위해 복사 + 정렬.
+    sorted_intervals = sorted((start, end) for start, end in intervals)
+    merged = [[sorted_intervals[0][0], sorted_intervals[0][1]]]
+
+    for start, end in sorted_intervals[1:]:
         if start <= merged[-1][1]:        # 겹치면 합침
             merged[-1][1] = max(merged[-1][1], end)
         else:
@@ -371,9 +424,10 @@ print(merge_intervals([[1,3],[2,6],[8,10],[15,18]]))
 # 시간복잡도: O(n log n)
 # ============================================================
 
-from functools import cmp_to_key
+def largest_number(nums: list[int]) -> str:
+    if not nums:
+        return ""
 
-def largest_number(nums: list) -> str:
     nums = list(map(str, nums))
 
     def compare(a, b):
