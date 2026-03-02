@@ -25,8 +25,9 @@
 #   - 시나리오 상태 전이 그래프 탐색
 # ====================================================================
 
-from collections import deque
-from typing import List, Tuple, Optional
+from collections import defaultdict, deque
+from typing import Deque, Dict, List, Optional, Tuple
+import heapq
 
 
 # ------------------------------------------------------------------
@@ -48,15 +49,28 @@ def bfs_shortest_path(
     grid: 0=이동 가능, 1=장애물
     반환: 최단 이동 칸 수, 경로 없으면 -1
     """
+    # 입력 유효성: 비어 있는 격자는 경로 탐색 자체가 불가능하다.
+    if not grid or not grid[0]:
+        return -1
+
+    # 행/열 길이를 지역 변수로 캐싱하면 반복문에서 가독성과 성능이 모두 좋아진다.
     R, C = len(grid), len(grid[0])
+
+    # 시작점/도착점이 격자 범위를 벗어나면 잘못된 입력이므로 실패 처리한다.
+    if not (0 <= start[0] < R and 0 <= start[1] < C):
+        return -1
+    if not (0 <= end[0] < R and 0 <= end[1] < C):
+        return -1
+
+    # 시작/도착 칸이 장애물인 경우에는 경로가 존재할 수 없다.
     if grid[start[0]][start[1]] == 1 or grid[end[0]][end[1]] == 1:
         return -1
 
     visited = [[False] * C for _ in range(R)]
-    queue = deque()
+    queue: Deque[Tuple[int, int, int]] = deque()
     queue.append((start[0], start[1], 0))   # (row, col, steps)
     visited[start[0]][start[1]] = True
-    DIRS = [(-1,0),(1,0),(0,-1),(0,1)]       # 4방향 이동
+    DIRS = [(-1, 0), (1, 0), (0, -1), (0, 1)]  # 상/하/좌/우 4방향 이동
 
     while queue:
         r, c, steps = queue.popleft()
@@ -64,11 +78,16 @@ def bfs_shortest_path(
             return steps
         for dr, dc in DIRS:
             nr, nc = r + dr, c + dc
-            if 0 <= nr < R and 0 <= nc < C \
-               and not visited[nr][nc] \
-               and grid[nr][nc] == 0:
-                visited[nr][nc] = True
-                queue.append((nr, nc, steps + 1))
+            # 조건을 순서대로 분리하면 디버깅할 때 어떤 조건에서 탈락했는지 파악하기 쉽다.
+            if not (0 <= nr < R and 0 <= nc < C):
+                continue
+            if visited[nr][nc]:
+                continue
+            if grid[nr][nc] == 1:
+                continue
+
+            visited[nr][nc] = True
+            queue.append((nr, nc, steps + 1))
     return -1
 
 
@@ -83,23 +102,29 @@ def bfs_shortest_path(
 
 def count_obstacle_clusters(grid: List[List[int]]) -> int:
     """grid: 1=장애물, 0=빈 공간 — 연결된 장애물 덩어리 수 반환"""
+    if not grid or not grid[0]:
+        return 0
+
     R, C = len(grid), len(grid[0])
     visited = [[False] * C for _ in range(R)]
-    DIRS = [(-1,0),(1,0),(0,-1),(0,1)]
+    DIRS = [(-1, 0), (1, 0), (0, -1), (0, 1)]
     count = 0
 
-    def bfs(sr, sc):
-        queue = deque([(sr, sc)])
+    def bfs(sr: int, sc: int) -> None:
+        # 하나의 시작 장애물 셀에서 BFS를 수행하여 같은 클러스터를 전부 방문 처리한다.
+        queue: Deque[Tuple[int, int]] = deque([(sr, sc)])
         visited[sr][sc] = True
         while queue:
             r, c = queue.popleft()
             for dr, dc in DIRS:
                 nr, nc = r + dr, c + dc
-                if 0 <= nr < R and 0 <= nc < C \
-                   and not visited[nr][nc] \
-                   and grid[nr][nc] == 1:
-                    visited[nr][nc] = True
-                    queue.append((nr, nc))
+                if not (0 <= nr < R and 0 <= nc < C):
+                    continue
+                if visited[nr][nc] or grid[nr][nc] == 0:
+                    continue
+
+                visited[nr][nc] = True
+                queue.append((nr, nc))
 
     for r in range(R):
         for c in range(C):
@@ -118,14 +143,20 @@ def count_obstacle_clusters(grid: List[List[int]]) -> int:
 # 시간 복잡도: O(V + E)
 # ------------------------------------------------------------------
 
-def has_cycle_directed(n: int, edges: List[Tuple[int,int]]) -> bool:
+def has_cycle_directed(n: int, edges: List[Tuple[int, int]]) -> bool:
     """
     n     : 노드 수 (0 ~ n-1)
     edges : [(from, to), ...]
     반환  : 사이클 존재 여부
     """
-    graph = [[] for _ in range(n)]
+    if n <= 0:
+        return False
+
+    graph: List[List[int]] = [[] for _ in range(n)]
     for u, v in edges:
+        # 잘못된 인덱스는 탐색 시 런타임 에러를 만들 수 있으므로 사전 필터링한다.
+        if not (0 <= u < n and 0 <= v < n):
+            continue
         graph[u].append(v)
 
     # 0=미방문, 1=방문중(스택에 있음), 2=완료
@@ -162,9 +193,6 @@ def has_cycle_directed(n: int, edges: List[Tuple[int,int]]) -> bool:
 #   - A* 탐색 전처리
 # ====================================================================
 
-import heapq
-from collections import defaultdict
-
 INF = float('inf')
 
 
@@ -186,8 +214,18 @@ def dijkstra(
     """
     반환: dist[i] = src → i 최단 거리 (도달 불가 시 INF)
     """
-    graph = defaultdict(list)
+    if n <= 0:
+        return []
+    if not (0 <= src < n):
+        return [INF] * n
+
+    graph: Dict[int, List[Tuple[float, int]]] = defaultdict(list)
     for u, v, w in edges:
+        if not (0 <= u < n and 0 <= v < n):
+            continue
+        if w < 0:
+            # Dijkstra의 전제(비음수 간선)를 보존하기 위해 음수 가중치는 무시한다.
+            continue
         graph[u].append((w, v))
 
     dist = [INF] * n
@@ -221,8 +259,15 @@ def dijkstra_with_path(
     dst: int,
 ) -> Tuple[float, List[int]]:
     """반환: (최단 거리, 경로 노드 리스트)"""
-    graph = defaultdict(list)
+    if n <= 0 or not (0 <= src < n and 0 <= dst < n):
+        return INF, []
+
+    graph: Dict[int, List[Tuple[float, int]]] = defaultdict(list)
     for u, v, w in edges:
+        if not (0 <= u < n and 0 <= v < n):
+            continue
+        if w < 0:
+            continue
         graph[u].append((w, v))
 
     dist = [INF] * n
@@ -244,7 +289,8 @@ def dijkstra_with_path(
     if dist[dst] == INF:
         return INF, []
 
-    path = []
+    # prev 배열을 따라 역추적한 뒤 reverse하면 src -> dst 순서 경로가 된다.
+    path: List[int] = []
     cur = dst
     while cur != -1:
         path.append(cur)
@@ -268,6 +314,9 @@ def kth_closest_obstacle(
     k: int,
 ) -> Optional[Tuple[float,float,float]]:
     """반환: k번째로 가까운 포인트 (없으면 None)"""
+    if k <= 0:
+        return None
+
     ox, oy, oz = origin
     max_heap = []                        # Python은 최소 힙 → 음수로 최대 힙 구현
 
@@ -279,7 +328,8 @@ def kth_closest_obstacle(
 
     if len(max_heap) < k:
         return None
-    _, x, y, z = min(max_heap)          # 힙 최상단(=k번째 가까운 것)
+    # 음수 거리 중 최솟값(가장 큰 음수 절댓값)이 실제로는 k번째 최근접 거리다.
+    _, x, y, z = min(max_heap)
     return (x, y, z)
 
 
