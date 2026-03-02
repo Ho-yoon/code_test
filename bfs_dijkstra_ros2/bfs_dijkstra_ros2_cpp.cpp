@@ -14,9 +14,7 @@
 #include <iostream>
 #include <vector>
 #include <queue>
-#include <stack>
 #include <unordered_map>
-#include <unordered_set>
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -78,14 +76,28 @@ void result(const std::string& label, const std::string& val) {
 // 공간 복잡도: O(R × C)
 // ------------------------------------------------------------------
 
+// 2D 격자 좌표를 표현하는 단순 구조체.
+// row, col 순서를 명확히 하기 위해 필드명을 축약하지 않고 유지한다.
 struct Point { int r, c; };
 
-int bfsShortesetPath(
+int bfsShortestPath(
     const std::vector<std::vector<int>>& grid,
     Point start,
     Point end
 ) {
-    int R = grid.size(), C = grid[0].size();
+    // 입력 검증: 빈 격자이거나 열이 비어 있으면 탐색 자체가 불가능하다.
+    if (grid.empty() || grid[0].empty()) return -1;
+
+    const int R = static_cast<int>(grid.size());
+    const int C = static_cast<int>(grid[0].size());
+
+    // 시작점/종료점이 격자 범위를 벗어나면 잘못된 요청으로 처리한다.
+    auto inBounds = [&](int r, int c) {
+        return r >= 0 && r < R && c >= 0 && c < C;
+    };
+    if (!inBounds(start.r, start.c) || !inBounds(end.r, end.c)) return -1;
+
+    // 시작/도착 칸이 장애물(1)인 경우 경로는 존재하지 않는다.
     if (grid[start.r][start.c] == 1 || grid[end.r][end.c] == 1) return -1;
 
     std::vector<std::vector<bool>> visited(R, std::vector<bool>(C, false));
@@ -101,9 +113,10 @@ int bfsShortesetPath(
         auto [r, c, steps] = q.front(); q.pop();
         if (r == end.r && c == end.c) return steps;
         for (int d = 0; d < 4; ++d) {
-            int nr = r + dr[d], nc = c + dc[d];
-            if (nr >= 0 && nr < R && nc >= 0 && nc < C
-                && !visited[nr][nc] && grid[nr][nc] == 0) {
+            const int nr = r + dr[d];
+            const int nc = c + dc[d];
+            // 다음 칸이 격자 내부 + 미방문 + 빈 칸(0)일 때만 큐에 넣는다.
+            if (inBounds(nr, nc) && !visited[nr][nc] && grid[nr][nc] == 0) {
                 visited[nr][nc] = true;
                 q.push({nr, nc, steps + 1});
             }
@@ -121,11 +134,19 @@ int bfsShortesetPath(
 // ------------------------------------------------------------------
 
 int countObstacleClusters(const std::vector<std::vector<int>>& grid) {
-    int R = grid.size(), C = grid[0].size();
+    if (grid.empty() || grid[0].empty()) return 0;
+
+    const int R = static_cast<int>(grid.size());
+    const int C = static_cast<int>(grid[0].size());
     std::vector<std::vector<bool>> visited(R, std::vector<bool>(C, false));
     const int dr[] = {-1, 1, 0, 0};
     const int dc[] = { 0, 0,-1, 1};
     int count = 0;
+
+    // 범위 체크 로직을 람다로 분리해서 가독성과 재사용성을 높인다.
+    auto inBounds = [&](int r, int c) {
+        return r >= 0 && r < R && c >= 0 && c < C;
+    };
 
     auto bfs = [&](int sr, int sc) {
         std::queue<std::pair<int,int>> q;
@@ -134,9 +155,9 @@ int countObstacleClusters(const std::vector<std::vector<int>>& grid) {
         while (!q.empty()) {
             auto [r, c] = q.front(); q.pop();
             for (int d = 0; d < 4; ++d) {
-                int nr = r + dr[d], nc = c + dc[d];
-                if (nr >= 0 && nr < R && nc >= 0 && nc < C
-                    && !visited[nr][nc] && grid[nr][nc] == 1) {
+                const int nr = r + dr[d];
+                const int nc = c + dc[d];
+                if (inBounds(nr, nc) && !visited[nr][nc] && grid[nr][nc] == 1) {
                     visited[nr][nc] = true;
                     q.push({nr, nc});
                 }
@@ -163,7 +184,11 @@ int countObstacleClusters(const std::vector<std::vector<int>>& grid) {
 
 bool hasCycleDirected(int n, const std::vector<std::pair<int,int>>& edges) {
     std::vector<std::vector<int>> graph(n);
-    for (auto [u, v] : edges) graph[u].push_back(v);
+    for (auto [u, v] : edges) {
+        // 잘못된 간선 인덱스가 입력되어도 프로그램이 비정상 종료되지 않게 보호한다.
+        if (u < 0 || u >= n || v < 0 || v >= n) continue;
+        graph[u].push_back(v);
+    }
 
     // 0=미방문, 1=방문중(스택), 2=완료
     std::vector<int> state(n, 0);
@@ -215,7 +240,11 @@ std::vector<double> dijkstra(
     int src
 ) {
     std::vector<std::vector<Edge>> graph(n);
-    for (auto [u, v, w] : edges) graph[u].push_back({w, v});
+    for (auto [u, v, w] : edges) {
+        if (u < 0 || u >= n || v < 0 || v >= n) continue;
+        if (w < 0.0) continue; // Dijkstra 가정(음수 간선 없음) 보호
+        graph[u].push_back({w, v});
+    }
 
     std::vector<double> dist(n, INF);
     dist[src] = 0.0;
@@ -225,10 +254,11 @@ std::vector<double> dijkstra(
     pq.push({0.0, src});
 
     while (!pq.empty()) {
-        auto [cost, u] = pq.top(); pq.pop();
+        const auto [cost, u] = pq.top();
+        pq.pop();
         if (cost > dist[u]) continue;       // 더 짧은 경로가 이미 처리됨
         for (auto [w, v] : graph[u]) {
-            double nc = cost + w;
+            const double nc = cost + w;
             if (nc < dist[v]) {
                 dist[v] = nc;
                 pq.push({nc, v});
@@ -253,7 +283,11 @@ std::pair<double, std::vector<int>> dijkstraWithPath(
     int dst
 ) {
     std::vector<std::vector<Edge>> graph(n);
-    for (auto [u, v, w] : edges) graph[u].push_back({w, v});
+    for (auto [u, v, w] : edges) {
+        if (u < 0 || u >= n || v < 0 || v >= n) continue;
+        if (w < 0.0) continue;
+        graph[u].push_back({w, v});
+    }
 
     std::vector<double> dist(n, INF);
     std::vector<int>    prev(n, -1);
@@ -263,10 +297,11 @@ std::pair<double, std::vector<int>> dijkstraWithPath(
     pq.push({0.0, src});
 
     while (!pq.empty()) {
-        auto [cost, u] = pq.top(); pq.pop();
+        const auto [cost, u] = pq.top();
+        pq.pop();
         if (cost > dist[u]) continue;
         for (auto [w, v] : graph[u]) {
-            double nc = cost + w;
+            const double nc = cost + w;
             if (nc < dist[v]) {
                 dist[v] = nc;
                 prev[v] = u;
@@ -299,6 +334,9 @@ std::optional<Point3D> kthClosestObstacle(
     Point3D origin,
     int k
 ) {
+    // k가 0 이하이거나 입력이 비어 있으면 정의할 수 없다.
+    if (k <= 0 || points.empty()) return std::nullopt;
+
     // 최대 힙: {dist², index}
     auto distSq = [&](const Point3D& p) {
         return (p.x-origin.x)*(p.x-origin.x)
@@ -309,14 +347,14 @@ std::optional<Point3D> kthClosestObstacle(
     using Elem = std::pair<float, int>;
     std::priority_queue<Elem> maxHeap;   // 최대 힙 (기본)
 
-    for (int i = 0; i < (int)points.size(); ++i) {
-        float d = distSq(points[i]);
+    for (int i = 0; i < static_cast<int>(points.size()); ++i) {
+        const float d = distSq(points[i]);
         maxHeap.push({d, i});
-        if ((int)maxHeap.size() > k)
+        if (static_cast<int>(maxHeap.size()) > k)
             maxHeap.pop();               // 가장 먼 포인트 제거
     }
 
-    if ((int)maxHeap.size() < k) return std::nullopt;
+    if (static_cast<int>(maxHeap.size()) < k) return std::nullopt;
 
     // 힙에서 k번째 가까운 것 = 현재 힙 최상단
     int idx = maxHeap.top().second;
@@ -366,6 +404,8 @@ public:
     // 시간 복잡도: O(N log N) — 복셀 다운샘플이 지배항
     // -------------------------------------------------------
     sensor_msgs::PointCloud2 process(const sensor_msgs::PointCloud2& input) {
+        // 원본 훼손을 피하기 위해 로컬 복사 후 단계별로 재할당한다.
+        // (실전 ROS2에서는 move semantics / loaned message 최적화 가능)
         auto pts = input.points;
         pts = rangeFilter(pts);        // O(N)
         pts = heightFilter(pts);       // O(N)
@@ -380,7 +420,7 @@ public:
     std::vector<Point3D> rangeFilter(const std::vector<Point3D>& pts) {
         std::vector<Point3D> out;
         out.reserve(pts.size());
-        float r2 = max_range_ * max_range_;
+        const float r2 = max_range_ * max_range_;
         for (const auto& p : pts)
             if (p.x*p.x + p.y*p.y <= r2)
                 out.push_back(p);
@@ -412,9 +452,10 @@ public:
 
         // 복셀 인덱스를 64비트 키로 인코딩
         auto toKey = [&](const Point3D& p) -> int64_t {
-            int64_t ix = static_cast<int64_t>(std::floor(p.x / voxel_size_));
-            int64_t iy = static_cast<int64_t>(std::floor(p.y / voxel_size_));
-            int64_t iz = static_cast<int64_t>(std::floor(p.z / voxel_size_));
+            // floor를 써야 음수 좌표에서도 동일 규칙으로 버킷이 형성된다.
+            const int64_t ix = static_cast<int64_t>(std::floor(p.x / voxel_size_));
+            const int64_t iy = static_cast<int64_t>(std::floor(p.y / voxel_size_));
+            const int64_t iz = static_cast<int64_t>(std::floor(p.z / voxel_size_));
             // 해시: 각 축 최대 ±10000 범위 가정
             return ix * 100'000'000LL + iy * 100'000LL + iz;
         };
@@ -432,7 +473,8 @@ public:
         std::vector<Point3D> out;
         out.reserve(voxels.size());
         for (auto& [key, a] : voxels) {
-            float inv = 1.0f / a.cnt;
+            (void)key; // key 자체는 평균 계산에 불필요하지만 구조 분해를 위해 유지
+            const float inv = 1.0f / static_cast<float>(a.cnt);
             out.push_back({a.sx*inv, a.sy*inv, a.sz*inv});
         }
         return out;
@@ -514,7 +556,7 @@ int main() {
             {0,0,0,1,0},
             {0,1,0,0,0},
         };
-        int steps = bfsShortesetPath(grid, {0,0}, {4,4});
+        int steps = bfsShortestPath(grid, {0,0}, {4,4});
         result("BFS 최단 경로 (0,0)→(4,4)", std::to_string(steps) + "칸");
     }
 
