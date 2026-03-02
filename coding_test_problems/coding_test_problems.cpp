@@ -15,16 +15,23 @@
 
 using namespace std;
 
+using IntPair = pair<int, int>;
+
 // ============================================================
 // [수학 1] 소수 판별 (Prime Number Check)
 // 시간복잡도: O(√n)
 // ============================================================
 
 bool is_prime(int n) {
+    // 0, 1, 음수는 소수가 아니다.
     if (n < 2) return false;
+    // 2는 유일한 짝수 소수.
     if (n == 2) return true;
+    // 2를 제외한 짝수는 소수가 아니다.
     if (n % 2 == 0) return false;
-    for (int i = 3; i <= (int)sqrt(n); i += 2)
+    // 매 반복마다 sqrt를 계산하지 않도록 한 번만 구해둔다.
+    const int limit = static_cast<int>(sqrt(n));
+    for (int i = 3; i <= limit; i += 2)
         if (n % i == 0) return false;
     return true;
 }
@@ -35,14 +42,21 @@ bool is_prime(int n) {
 // ============================================================
 
 vector<int> sieve_of_eratosthenes(int n) {
+    // n < 2면 소수가 존재하지 않는다.
+    if (n < 2) return {};
+
+    // index == 숫자 값, true면 현재까지 "소수 후보"라는 의미.
     vector<bool> is_prime_arr(n + 1, true);
     is_prime_arr[0] = is_prime_arr[1] = false;
-    for (int i = 2; i <= (int)sqrt(n); i++) {
+    const int limit = static_cast<int>(sqrt(n));
+    for (int i = 2; i <= limit; i++) {
         if (is_prime_arr[i])
+            // i의 배수는 모두 합성수 처리.
             for (int j = i * i; j <= n; j += i)
                 is_prime_arr[j] = false;
     }
     vector<int> primes;
+    primes.reserve(n / 10);  // 대략적인 추정치로 재할당 횟수 감소.
     for (int i = 2; i <= n; i++)
         if (is_prime_arr[i]) primes.push_back(i);
     return primes;
@@ -54,11 +68,16 @@ vector<int> sieve_of_eratosthenes(int n) {
 // ============================================================
 
 long long gcd(long long a, long long b) {
+    // 음수 입력도 안정적으로 처리하기 위해 절대값 사용.
+    a = llabs(a);
+    b = llabs(b);
     while (b) { a %= b; swap(a, b); }
     return a;
 }
 
 long long lcm(long long a, long long b) {
+    // 둘 중 하나라도 0이면 최소공배수는 0.
+    if (a == 0 || b == 0) return 0;
     return a / gcd(a, b) * b;   // 오버플로 방지: 먼저 나누기
 }
 
@@ -68,6 +87,8 @@ long long lcm(long long a, long long b) {
 // ============================================================
 
 long long fibonacci(int n) {
+    // 음수 인덱스는 본 예제 범위에서 허용하지 않는다.
+    if (n < 0) return 0;
     if (n <= 1) return n;
     long long a = 0, b = 1;
     for (int i = 2; i <= n; i++) {
@@ -83,6 +104,9 @@ long long fibonacci(int n) {
 // ============================================================
 
 long long fast_power(long long a, long long b, long long mod) {
+    // mod <= 0이면 수학적 의미가 모호하므로 0 반환.
+    if (mod <= 0) return 0;
+
     long long result = 1;
     a %= mod;
     while (b > 0) {
@@ -101,7 +125,8 @@ long long fast_power(long long a, long long b, long long mod) {
 const long long MOD = 1e9 + 7;
 
 long long combination(int n, int r) {
-    if (r > n) return 0;
+    if (n < 0 || r < 0 || r > n) return 0;
+    // nCr == nC(n-r) 성질을 이용해 반복 횟수 최적화.
     r = min(r, n - r);
     long long num = 1, den = 1;
     for (int i = 0; i < r; i++) {
@@ -117,7 +142,7 @@ long long combination(int n, int r) {
 // ============================================================
 
 vector<int> bubble_sort(vector<int> arr) {
-    int n = arr.size();
+    const int n = static_cast<int>(arr.size());
     for (int i = 0; i < n; i++) {
         bool swapped = false;
         for (int j = 0; j < n - i - 1; j++) {
@@ -137,7 +162,7 @@ vector<int> bubble_sort(vector<int> arr) {
 // ============================================================
 
 vector<int> selection_sort(vector<int> arr) {
-    int n = arr.size();
+    const int n = static_cast<int>(arr.size());
     for (int i = 0; i < n; i++) {
         int min_idx = i;
         for (int j = i + 1; j < n; j++)
@@ -153,7 +178,7 @@ vector<int> selection_sort(vector<int> arr) {
 // ============================================================
 
 vector<int> insertion_sort(vector<int> arr) {
-    int n = arr.size();
+    const int n = static_cast<int>(arr.size());
     for (int i = 1; i < n; i++) {
         int key = arr[i];
         int j = i - 1;
@@ -171,8 +196,9 @@ vector<int> insertion_sort(vector<int> arr) {
 // 시간복잡도: O(n log n) / 안정 정렬
 // ============================================================
 
-vector<int> merge_two(vector<int>& left, vector<int>& right) {
+vector<int> merge_two(const vector<int>& left, const vector<int>& right) {
     vector<int> result;
+    result.reserve(left.size() + right.size());
     int i = 0, j = 0;
     while (i < (int)left.size() && j < (int)right.size()) {
         if (left[i] <= right[j]) result.push_back(left[i++]);
@@ -185,7 +211,7 @@ vector<int> merge_two(vector<int>& left, vector<int>& right) {
 
 vector<int> merge_sort(vector<int> arr) {
     if (arr.size() <= 1) return arr;
-    int mid = arr.size() / 2;
+    const int mid = static_cast<int>(arr.size()) / 2;
     vector<int> left  = merge_sort(vector<int>(arr.begin(), arr.begin() + mid));
     vector<int> right = merge_sort(vector<int>(arr.begin() + mid, arr.end()));
     return merge_two(left, right);
@@ -198,8 +224,12 @@ vector<int> merge_sort(vector<int> arr) {
 
 vector<int> quick_sort(vector<int> arr) {
     if (arr.size() <= 1) return arr;
-    int pivot = arr[arr.size() / 2];
+    // 중앙값 기반 pivot 선택(단순 구현).
+    const int pivot = arr[arr.size() / 2];
     vector<int> left, mid, right;
+    left.reserve(arr.size());
+    mid.reserve(arr.size());
+    right.reserve(arr.size());
     for (int x : arr) {
         if (x < pivot)      left.push_back(x);
         else if (x == pivot) mid.push_back(x);
@@ -219,13 +249,22 @@ vector<int> quick_sort(vector<int> arr) {
 
 vector<int> counting_sort(vector<int> arr) {
     if (arr.empty()) return arr;
-    int max_val = *max_element(arr.begin(), arr.end());
-    vector<int> count(max_val + 1, 0);
-    for (int x : arr) count[x]++;
+    const int min_val = *min_element(arr.begin(), arr.end());
+    const int max_val = *max_element(arr.begin(), arr.end());
+
+    // 음수 데이터도 처리하기 위해 offset(min_val)을 사용한다.
+    const int offset = -min_val;
+    vector<int> count(max_val - min_val + 1, 0);
+    for (int x : arr) count[x + offset]++;
+
     vector<int> result;
-    for (int val = 0; val <= max_val; val++)
-        for (int c = 0; c < count[val]; c++)
+    result.reserve(arr.size());
+    for (int val = min_val; val <= max_val; val++) {
+        const int frequency = count[val + offset];
+        for (int c = 0; c < frequency; c++) {
             result.push_back(val);
+        }
+    }
     return result;
 }
 
@@ -238,12 +277,15 @@ void sort_students() {
         {"Alice", 88}, {"Bob", 95}, {"Charlie", 88},
         {"Diana", 72}, {"Eve", 95}
     };
+
+    // 1순위: 점수 내림차순, 2순위: 이름 오름차순.
     sort(students.begin(), students.end(), [](const auto& a, const auto& b) {
-        if (a.second != b.second) return a.second > b.second;   // 점수 내림차순
-        return a.first < b.first;                                // 이름 오름차순
+        if (a.second != b.second) return a.second > b.second;
+        return a.first < b.first;
     });
+
     cout << "\n=== [정렬 7] 커스텀 정렬 ===" << endl;
-    for (auto& [name, score] : students)
+    for (const auto& [name, score] : students)
         cout << "  " << name << ": " << score << endl;
 }
 
@@ -252,11 +294,14 @@ void sort_students() {
 // 시간복잡도: O(n log k)
 // ============================================================
 
-int kth_largest(vector<int> arr, int k) {
-    priority_queue<int, vector<int>, greater<int>> min_heap;  // 최소 힙
+int kth_largest(const vector<int>& arr, int k) {
+    // 잘못된 요청(예: k <= 0, k > n)은 INT_MIN으로 신호 처리.
+    if (k <= 0 || k > static_cast<int>(arr.size())) return numeric_limits<int>::min();
+
+    priority_queue<int, vector<int>, greater<int>> min_heap;  // 크기 k 유지용 최소 힙
     for (int num : arr) {
         min_heap.push(num);
-        if ((int)min_heap.size() > k) min_heap.pop();
+        if (static_cast<int>(min_heap.size()) > k) min_heap.pop();
     }
     return min_heap.top();
 }
@@ -266,11 +311,17 @@ int kth_largest(vector<int> arr, int k) {
 // 시간복잡도: O(n log n)
 // ============================================================
 
-vector<pair<int,int>> merge_intervals(vector<pair<int,int>> intervals) {
+vector<IntPair> merge_intervals(vector<IntPair> intervals) {
+    if (intervals.empty()) return {};
+
     sort(intervals.begin(), intervals.end());   // 시작점 기준 정렬
-    vector<pair<int,int>> merged;
+    vector<IntPair> merged;
+    merged.reserve(intervals.size());
     merged.push_back(intervals[0]);
-    for (auto& [start, end] : intervals) {
+
+    // 첫 원소는 이미 merged에 넣었으므로 2번째 원소부터 순회.
+    for (size_t i = 1; i < intervals.size(); i++) {
+        const auto& [start, end] = intervals[i];
         if (start <= merged.back().second)
             merged.back().second = max(merged.back().second, end);
         else
@@ -284,14 +335,17 @@ vector<pair<int,int>> merge_intervals(vector<pair<int,int>> intervals) {
 // 시간복잡도: O(n log n)
 // ============================================================
 
-string largest_number(vector<int> nums) {
+string largest_number(const vector<int>& nums) {
+    if (nums.empty()) return "0";
+
     vector<string> strs;
+    strs.reserve(nums.size());
     for (int n : nums) strs.push_back(to_string(n));
     sort(strs.begin(), strs.end(), [](const string& a, const string& b) {
         return a + b > b + a;   // "93" vs "39" → "93" 먼저
     });
     string result;
-    for (auto& s : strs) result += s;
+    for (const auto& s : strs) result += s;
     return (result[0] == '0') ? "0" : result;
 }
 
@@ -301,9 +355,9 @@ string largest_number(vector<int> nums) {
 
 void print_vec(const vector<int>& v) {
     cout << "[";
-    for (int i = 0; i < (int)v.size(); i++) {
+    for (int i = 0; i < static_cast<int>(v.size()); i++) {
         cout << v[i];
-        if (i + 1 < (int)v.size()) cout << ", ";
+        if (i + 1 < static_cast<int>(v.size())) cout << ", ";
     }
     cout << "]" << endl;
 }
@@ -316,9 +370,11 @@ int main() {
     ios_base::sync_with_stdio(false);
     cin.tie(nullptr);
 
+    // boolalpha를 켜면 true/false를 1/0 대신 문자열로 출력한다.
+    cout << boolalpha;
+
     // ── 수학 1: 소수 판별 ──
     cout << "=== [수학 1] 소수 판별 ===" << endl;
-    cout << boolalpha;
     cout << is_prime(17) << endl;   // true
     cout << is_prime(18) << endl;   // false
     cout << is_prime(2)  << endl;   // true
@@ -351,7 +407,7 @@ int main() {
     cout << combination(5, 2)  << endl;   // 10
 
     // ── 정렬 1~6 ──
-    vector<int> arr1 = {64, 34, 25, 12, 22, 11, 90};
+    const vector<int> arr1 = {64, 34, 25, 12, 22, 11, 90};
 
     cout << "\n=== [정렬 1] 버블 정렬 ===" << endl;
     print_vec(bubble_sort(arr1));
@@ -370,6 +426,7 @@ int main() {
 
     cout << "\n=== [정렬 6] 계수 정렬 ===" << endl;
     print_vec(counting_sort({4, 2, 2, 8, 3, 3, 1}));
+    print_vec(counting_sort({-3, 0, 2, -1, 2, -3}));  // 음수 예시
 
     // ── 정렬 응용 7: 커스텀 ──
     sort_students();
@@ -381,8 +438,8 @@ int main() {
 
     // ── 정렬 응용 9: 구간 병합 ──
     cout << "\n=== [정렬 9] 구간 병합 ===" << endl;
-    auto merged = merge_intervals({{1,3},{2,6},{8,10},{15,18}});
-    for (auto& [s, e] : merged)
+    const auto merged = merge_intervals({{1,3},{2,6},{8,10},{15,18}});
+    for (const auto& [s, e] : merged)
         cout << "[" << s << ", " << e << "] ";
     cout << endl;
 
