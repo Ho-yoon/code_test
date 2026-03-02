@@ -8,16 +8,13 @@
 ====================================================================
 """
 
-import re
 import csv
-import json
-import heapq
+import re
 from io import StringIO
 from dataclasses import dataclass, field
-from typing import List, Dict, Optional, Tuple
-from collections import defaultdict, deque
+from typing import Dict, List, Optional
+from collections import defaultdict
 from enum import Enum
-import math
 import random
 
 # ────────────────────────────────────────────────────────────────
@@ -31,17 +28,21 @@ CYAN   = "\033[36m"
 YELLOW = "\033[33m"
 RED    = "\033[31m"
 
-def section(title: str):
+def section(title: str) -> None:
+    """콘솔에서 큰 섹션 구분선을 출력한다."""
     bar = "═" * 54
     print(f"\n{BOLD}{CYAN}{bar}\n  {title}\n{bar}{RESET}")
 
-def ok(label: str, val: str = ""):
+def ok(label: str, val: str = "") -> None:
+    """성공 메시지를 초록색으로 출력한다."""
     print(f"{GREEN}  [✓]{RESET} {label}" + (f": {BOLD}{val}{RESET}" if val else ""))
 
-def warn(label: str, val: str = ""):
+def warn(label: str, val: str = "") -> None:
+    """주의 메시지를 노란색으로 출력한다."""
     print(f"{YELLOW}  [!]{RESET} {label}" + (f": {BOLD}{val}{RESET}" if val else ""))
 
-def err(label: str, val: str = ""):
+def err(label: str, val: str = "") -> None:
+    """오류 메시지를 빨간색으로 출력한다."""
     print(f"{RED}  [✗]{RESET} {label}" + (f": {BOLD}{val}{RESET}" if val else ""))
 
 
@@ -110,9 +111,11 @@ def parse_log(raw: str) -> List[LogEntry]:
     텍스트 로그 → LogEntry 리스트
     시간 복잡도: O(N)
     """
-    entries = []
-    for line in raw.strip().splitlines():
-        m = _LOG_RE.match(line.strip())
+    entries: List[LogEntry] = []
+    for raw_line in raw.strip().splitlines():
+        # line 단위로 공백을 정리한 뒤 정규식에 매칭한다.
+        line = raw_line.strip()
+        m = _LOG_RE.match(line)
         if m:
             entries.append(LogEntry(
                 timestamp=float(m.group("ts")),
@@ -120,6 +123,8 @@ def parse_log(raw: str) -> List[LogEntry]:
                 node=m.group("node").strip(),
                 message=m.group("msg").strip(),
             ))
+        # 매칭 실패 라인은 무시한다.
+        # (실서비스에서는 여기서 수집/로깅하여 데이터 품질을 추적하는 편이 좋다.)
     return entries
 
 def aggregate_by_node(entries: List[LogEntry]) -> Dict[str, Dict[str, int]]:
@@ -215,14 +220,16 @@ def parse_scenario_csv(raw: str) -> List[ScenarioResult]:
     시간 복잡도: O(N)
     """
     reader = csv.DictReader(StringIO(raw.strip()))
-    results = []
+    results: List[ScenarioResult] = []
     for row in reader:
+        # bool 컬럼은 대소문자/앞뒤 공백을 정규화해서 해석한다.
+        collision = row["collision"].strip().lower() == "true"
         results.append(ScenarioResult(
             scenario_id=row["scenario_id"],
             category=row["category"],
             max_lateral_err=float(row["max_lateral_err_m"]),
             max_speed=float(row["max_speed_kmh"]),
-            collision=row["collision"].strip().lower() == "true",
+            collision=collision,
             test_duration=float(row["test_duration_s"]),
         ))
     return results
@@ -246,10 +253,13 @@ def aggregate_scenario_stats(results: List[ScenarioResult]) -> dict:
         }
         for cat, v in by_cat.items()
     }
+    pass_rate = (passed / total * 100) if total else 0.0
+
     return {
         "total": total,
         "passed": passed,
-        "pass_rate": f"{passed/total*100:.1f}%",
+        # 빈 입력이 들어와도 ZeroDivisionError 없이 0.0%를 반환한다.
+        "pass_rate": f"{pass_rate:.1f}%",
         "by_category": cat_stats,
     }
 
@@ -273,6 +283,10 @@ def find_high_latency_windows(
     반환: 윈도우 평균 > threshold_ms 인 시작 인덱스 리스트
     시간 복잡도: O(N)
     """
+    # window 파라미터 방어 코드: 0 이하의 창 크기는 의미가 없으므로 빈 결과를 반환한다.
+    if window <= 0:
+        return []
+
     n = len(latencies_ms)
     if n < window:
         return []
@@ -348,7 +362,7 @@ def detect_vehicle_violations(frames: List[VehicleFrame]) -> List[Violation]:
     LAT_LIMIT    =  0.30  # m
     HEADWAY_TIME =  2.0   # s (time-gap 기준)
 
-    violations = []
+    violations: List[Violation] = []
     for f in frames:
         if f.speed > f.speed_limit:
             violations.append(Violation(
@@ -370,6 +384,7 @@ def detect_vehicle_violations(frames: List[VehicleFrame]) -> List[Violation]:
                 f.t, ViolationType.LATERAL_ERR,
                 f"|lateral|={abs(f.lateral_err):.2f} > {LAT_LIMIT} m"
             ))
+        # time-gap 규칙: 현재 속도에서 2초 동안 진행하는 거리 이상 확보.
         safe_dist = HEADWAY_TIME * f.speed
         if f.dist_to_front < safe_dist:
             violations.append(Violation(
@@ -416,8 +431,7 @@ def detect_pattern_violations(events: List[Event]) -> List[PatternViolation]:
     FSM 기반 이벤트 스트림 금지 패턴 탐지
     시간 복잡도: O(N)
     """
-    results = []
-    n = len(events)
+    results: List[PatternViolation] = []
 
     # ── 패턴 1: OBSTACLE_DETECTED 후 1.0s 내 BRAKE 없음
     #    FSM: waiting_brake=False → OBSTACLE_DETECTED 시 True + 타임스탬프 기록
@@ -431,7 +445,7 @@ def detect_pattern_violations(events: List[Event]) -> List[PatternViolation]:
 
     prev_etype = ""
 
-    for i, e in enumerate(events):
+    for e in events:
         # 패턴 1 타임아웃 체크
         if waiting_brake and (e.t - obstacle_t) > BRAKE_WINDOW:
             results.append(PatternViolation(
@@ -504,12 +518,16 @@ def detect_sensor_anomalies(
     타임스탬프 시퀀스 이상 탐지
     시간 복잡도: O(N)
     """
+    # 예상 주파수는 0보다 커야 한다. 잘못된 파라미터는 즉시 실패시키는 편이 디버깅에 유리하다.
+    if expected_hz <= 0:
+        raise ValueError("expected_hz must be positive")
+
     dt_expected = 1.0 / expected_hz
     dt_min = dt_expected * (1 - tolerance)
     dt_max = dt_expected * (1 + tolerance)
     gap_threshold = dt_expected * 2.0
 
-    anomalies = []
+    anomalies: List[SensorAnomaly] = []
     for i in range(1, len(timestamps)):
         dt = timestamps[i] - timestamps[i-1]
         if dt <= 0:
